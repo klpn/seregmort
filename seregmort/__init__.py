@@ -151,9 +151,9 @@ def catot_yrsdict(region, cause):
             'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
             'numcause': cause, 'denomcause': 'TOT', 'region': region}
 
-def catot_sexesdict(regvalues, cause, staryear, endyear):
+def catot_sexesdict(regvalues, cause, startyear, endyear):
     cadeaths = ndeaths(regvalues, [cause], yearvalues = yearrange(startyear, endyear))
-    totdeaths = ndeaths(regvalues, ['TOT'], yearvalues = yearvalues)
+    totdeaths = ndeaths(regvalues, ['TOT'], yearvalues = yearrange(startyear, endyear))
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
             'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
             'numcause': cause, 'denomcause': 'TOT'}
