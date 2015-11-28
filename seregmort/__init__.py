@@ -1,7 +1,11 @@
 import requests
 import json
+import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import cartopy.io.shapereader as shpreader
+import cartopy.crs as ccrs
 import statsmodels.api as sm
 from pyjstat import pyjstat
 from collections import OrderedDict
@@ -143,7 +147,63 @@ def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     plt.title('Döda {numcausealias}/{denomcausealias}\n'
     '{agealias} {startyear}\u2013{endyear}'.format(**locals()))
 
-    
+def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
+        age, sex, shapefname):
+    plt.close()
+    numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
+    denomcausealias = denomdim['Dodsorsak']['category']['label'][denomcause]
+    agealias = age.replace('-', '\u2013')
+    sexalias = numdim['Kon']['category']['label'][sex]
+    startyear = min(numframe.Tid)
+    endyear = max(numframe.Tid)
+    region_shp = shpreader.Reader(shapefname)
+    numframe_sub =  numframe[(numframe.Kon == sex) & 
+            (numframe.Dodsorsak == numcause) 
+            & (numframe.Alder == age)].groupby(['Region'])
+    denomframe_sub =  denomframe[(denomframe.Kon == sex) & 
+            (denomframe.Dodsorsak == denomcause) & 
+            (denomframe.Alder == age)].groupby(['Region'])
+    prop = numframe_sub.value.sum() / denomframe_sub.value.sum()
+    regvalues = list(numframe_sub.Region.all())
+    percentiles = [{'col': 'lightsalmon', 'value': np.percentile(prop, 1/3*100)},
+            {'col': 'tomato', 'value': np.percentile(prop, 2/3*100)},
+            {'col': 'red', 'value': np.percentile(prop, 100)}]
+
+    ax = plt.axes(projection = ccrs.TransverseMercator())
+
+    boundlist = []
+    for region_rec in region_shp.records():
+        regcode = region_rec.attributes['ID']
+        if regcode in regvalues:
+            i = regvalues.index(regcode)
+            boundlist.append(region_rec.bounds)
+            for percentile in percentiles:
+                if prop[i] <= percentile['value']:
+                    facecolor = percentile['col']
+                    break
+            ax.add_geometries([region_rec.geometry],  ccrs.TransverseMercator(),
+                edgecolor = 'black', facecolor = facecolor)
+
+    xmin = min([bound[0] for bound in boundlist])
+    xmax = max([bound[2] for bound in boundlist])
+    ymin = min([bound[1] for bound in boundlist])
+    ymax = max([bound[3] for bound in boundlist])
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    percpatches = []
+    perclabels = []
+    for percentile in percentiles:
+        percpatch = mpatches.Rectangle((0, 0), 1, 1, 
+                facecolor = percentile['col'])
+        percpatches.append(percpatch)
+        perclabel = '\u2264' + str(np.round(percentile['value'], 4)).replace('.', ',')
+        perclabels.append(perclabel)
+    plt.legend(percpatches, perclabels, loc = 'lower left')
+    plt.title('Döda {numcausealias}/{denomcausealias}\n'
+    '{sexalias} {agealias} {startyear}\u2013{endyear}'.format(**locals()))
+
+    plt.show()
+
 def catot_yrsdict(region, cause):
     cadeaths = ndeaths([region], [cause])
     totdeaths = ndeaths([region], ['TOT'])
@@ -157,4 +217,13 @@ def catot_sexesdict(regvalues, cause, startyear, endyear):
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
             'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
             'numcause': cause, 'denomcause': 'TOT'}
-    
+
+def catot_mapdict(regvalues, cause, startyear, endyear, shapefname):
+    cadeaths = ndeaths(regvalues, [cause], yearvalues = yearrange(startyear, endyear))
+    totdeaths = ndeaths(regvalues, ['TOT'], yearvalues = yearrange(startyear, endyear))
+    return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
+            'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
+            'numcause': cause, 'denomcause': 'TOT', 'shapefname': shapefname}
+
+def reglabels(pardict):
+    return pardict['numdim']['Region']['category']['label']
