@@ -4,15 +4,22 @@ This program can be used to analyze cause-specific regional Swedish mortality da
 Possible values for regions, age groups, sexes and causes of death can be retrieved by `metadata(morturl)` which sends a GET request to the [mortality table](http://api.scb.se/OV0104/v1/doris/sv/ssd/START/HS/HS0301/DodaOrsak).
 
 ##Examples
-Save data on deaths from circulatory disorders in Västmanland County for the whole period in a dictionary, and plot a smoothed diagram showing the time trend for proportion of deaths due to this cause group for females and males in the age interval of 70--74 years.
+Save data on deaths from circulatory disorders in Västmanland County for the whole period in a dictionary, and plot a smoothed diagram showing the time trend for proportion of deaths due to this cause group for females and males in the age interval of 70--74 years:
 
 ```python
 pardict = catot_yrsdict('19', '23-28')
 propplotyrs(**pardict, age = '70-74')
 ```
-Save data on deaths from circulatory disorders in all municipalities in Norrbotten County for the period 1981--86, and make a scatterplot of female vs male proportion of all deaths due to this cause group during the period in the age interval of 75--79 years. Note that data for single years are often not very useful due to the small numbers of deaths, especially at the municipality level.
-
+Save data on deaths from circulatory disorders in all municipalities in Norrbotten County for the period 1981--86, and make a scatterplot of female vs male proportion of all deaths due to this cause group during the period in the age interval of 75--79 years: 
 ```python
 pardict = catot_sexesdict(munis_incounty('25', metadata(morturl)), '23-28', 1981, 1986)
 propscatsexes(**pardict, age = '75-79')
 ```
+Note that data for single years are often not very useful due to the small numbers of deaths, especially at the municipality level.
+
+Using [cartopy](https://github.com/SciTools/cartopy), it is also possible to plot maps showing regions with a lower or higher proportion of deaths from a given cause. Plot a map of the proportion of female deaths due to circulatory disorders in all municipalities in Västernorrland County during the period 1981--86 in the age interval of 75--79 years:
+```python
+pardict = catot_mapdict(munis_incounty('22', meta), '23-28', 1981, 1986, 'alla_kommuner.shp')
+propmap(**pardict, age = '75-79', sex = '2')
+```
+Note that the example works with a shapefile of Swedish municipalities which can be downloaded as a [ZIP archive](http://www.val.se/val/val2010/statistik/gis/alla_kommuner.zip) from the Swedish Election Authority. However, this file does not work with some counties that have been changed after 1996.
