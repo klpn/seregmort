@@ -147,6 +147,9 @@ def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     plt.title('Döda {numcausealias}/{denomcausealias}\n'
     '{agealias} {startyear}\u2013{endyear}'.format(**locals()))
 
+def perc_round(value):
+    return str(np.round(value, 4)).replace('.', ',')
+        
 def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
         age, sex, shapefname):
     plt.close()
@@ -192,13 +195,17 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     ax.set_ylim(ymin, ymax)
     percpatches = []
     perclabels = []
-    for percentile in percentiles:
+    for i, percentile in enumerate(percentiles):
         percpatch = mpatches.Rectangle((0, 0), 1, 1, 
                 facecolor = percentile['col'])
         percpatches.append(percpatch)
-        perclabel = '\u2264' + str(np.round(percentile['value'], 4)).replace('.', ',')
+        if i == 0:
+            perclabel = str('\u2265' + perc_round(min(prop)) + 
+                    '\n\u2264' + perc_round(percentile['value']))
+        else:
+            perclabel = '\u2264' + perc_round(percentile['value'])
         perclabels.append(perclabel)
-    plt.legend(percpatches, perclabels, loc = 'lower left')
+    plt.legend(percpatches, perclabels, loc = 'lower left', framealpha = 0.75)
     plt.title('Döda {numcausealias}/{denomcausealias}\n'
     '{sexalias} {agealias} {startyear}\u2013{endyear}'.format(**locals()))
 
