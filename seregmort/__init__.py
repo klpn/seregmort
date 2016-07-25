@@ -20,7 +20,10 @@ g_units = pd.read_csv('naddata/g_units_names.csv', index_col = 'ref')
 
 def scb_to_unit(scb):
     scbform = 'SE/' + '{:0<9}'.format(scb)
-    return g_units.loc[scbform, 'G_unit']
+    if scbform in g_units.index:
+        return g_units.loc[scbform, 'G_unit']
+    else:
+        return 0
 
 def metadata(url):
     req = requests.get(url)
@@ -177,9 +180,9 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     regvalues = list(numframe_sub.Region.all())
     units = list(map(scb_to_unit, regvalues))
     regdict = dict(zip(units, regvalues))
-    percentiles = [{'col': 'lightsalmon', 'value': np.percentile(prop, 1/3*100)},
-            {'col': 'tomato', 'value': np.percentile(prop, 2/3*100)},
-            {'col': 'red', 'value': np.percentile(prop, 100)}]
+    percentiles = [{'col': 'lightsalmon', 'value': np.nanpercentile(prop, 1/3*100)},
+            {'col': 'tomato', 'value': np.nanpercentile(prop, 2/3*100)},
+            {'col': 'red', 'value': np.nanpercentile(prop, 100)}]
 
     ax = plt.axes(projection = ccrs.TransverseMercator())
 
