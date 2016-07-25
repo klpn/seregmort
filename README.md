@@ -31,7 +31,3 @@ Plot a map of the proportion of female deaths due to circulatory disorders in al
 ```python
 pardict = catot_mapdict(munis_incounty('22', metadata(morturl)), '23-28', 1981,
 1986, 'naddata/2504/__pgsql2shp2504_tmp_table.shp')
-propmap(**pardict, age = '75-79', sex = '2')
-```
-
-d
