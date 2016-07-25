@@ -7,6 +7,7 @@ import matplotlib.patches as mpatches
 import cartopy.io.shapereader as shpreader
 import cartopy.crs as ccrs
 import statsmodels.api as sm
+import pandas as pd
 from pyjstat import pyjstat
 from collections import OrderedDict
 from sqlalchemy import create_engine
@@ -14,6 +15,12 @@ from sqlalchemy import create_engine
 mpl.rcParams['axes.formatter.use_locale'] = True
 mpl.style.use('ggplot')
 morturl = 'http://api.scb.se/OV0104/v1/doris/sv/ssd/START/HS/HS0301/DodaOrsak'
+popurl = 'http://api.scb.se/OV0104/v1/doris/sv/ssd/START/BE/BE0101/BE0101A/BefolkningNy'
+g_units = pd.read_csv('naddata/g_units_names.csv', index_col = 'ref')
+
+def scb_to_unit(scb):
+    scbform = 'SE/' + '{:0<9}'.format(scb)
+    return g_units.loc[scbform, 'G_unit']
 
 def metadata(url):
     req = requests.get(url)
@@ -168,6 +175,8 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
             (denomframe.Alder == age)].groupby(['Region'])
     prop = numframe_sub.value.sum() / denomframe_sub.value.sum()
     regvalues = list(numframe_sub.Region.all())
+    units = list(map(scb_to_unit, regvalues))
+    regdict = dict(zip(units, regvalues))
     percentiles = [{'col': 'lightsalmon', 'value': np.percentile(prop, 1/3*100)},
             {'col': 'tomato', 'value': np.percentile(prop, 2/3*100)},
             {'col': 'red', 'value': np.percentile(prop, 100)}]
@@ -176,9 +185,9 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
 
     boundlist = []
     for region_rec in region_shp.records():
-        regcode = region_rec.attributes['ID']
-        if regcode in regvalues:
-            i = regvalues.index(regcode)
+        regcode = region_rec.attributes['G_UNIT']
+        if regcode in regdict.keys():
+            i = regvalues.index(regdict[regcode])
             boundlist.append(region_rec.bounds)
             for percentile in percentiles:
                 if prop[i] <= percentile['value']:
