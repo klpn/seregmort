@@ -186,7 +186,8 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     boundlist = []
     for region_rec in region_shp.records():
         regcode = region_rec.attributes['G_UNIT']
-        if regcode in regdict.keys():
+        regend = region_rec.attributes['GET_END_YE']
+        if (regcode in regdict.keys() and regend > 1995):
             i = regvalues.index(regdict[regcode])
             boundlist.append(region_rec.bounds)
             for percentile in percentiles:
