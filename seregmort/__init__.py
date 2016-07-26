@@ -19,6 +19,7 @@ popurl = 'http://api.scb.se/OV0104/v1/doris/sv/ssd/START/BE/BE0101/BE0101A/Befol
 g_units = pd.read_csv('naddata/g_units_names.csv', index_col = 'ref')
 
 def scb_to_unit(scb):
+    """Convert codes used by Statistics Sweden to units used by the NAD GIS files."""
     scbform = 'SE/' + '{:0<9}'.format(scb)
     if scbform in g_units.index:
         return g_units.loc[scbform, 'G_unit']
@@ -26,6 +27,7 @@ def scb_to_unit(scb):
         return 0
 
 def metadata(url):
+    """Fetch JSON metadata from url."""
     req = requests.get(url)
     return json.loads(req.content.decode('utf-8'), object_pairs_hook = OrderedDict)
 
@@ -33,10 +35,12 @@ def svreg_engine(dbfile):
     return create_engine('sqlite:///' + dbfile) 
 
 def save_frame(ndeaths, dbfile):
+    """Save a dataframe into a SQLite database."""
     engine = svreg_engine(dbfile)
     ndeaths['frame'].to_sql('regdeaths', engine, if_exists = 'append')
 
 def save_dimension(ndeaths, filename):
+    """Save returned metadata into a JSON file."""
     with open(filename, 'w') as f:
         json.dump(ndeaths['dimension'], f, ensure_ascii=False)
 
@@ -47,12 +51,14 @@ def is_municipality(region):
     return len(region) == 4
 
 def allages():
+    """Returns the age groups used by Statistics Sweden."""
     startages = [1] + list(range(5, 90, 5))
     endages = [4] + list(range(9, 94, 5))
     ageints = ['{0}-{1}'.format(s, e) for s, e in zip(startages, endages)]
     return ['0'] + ageints + ['90+']
 
 def allregions(level, metadict):
+    """Return all regions at county or municipality level."""
     regvalues = metadict['variables'][0]['values']
     if level == 'county':
         return list(filter(is_county, regvalues))
@@ -60,6 +66,7 @@ def allregions(level, metadict):
         return list(filter(is_municipality, regvalues))
 
 def munis_incounty(county, metadict):
+    """Return all municipalities in the county given."""
     regvalues = metadict['variables'][0]['values']
     return [region for region in regvalues
             if is_municipality(region) and region.startswith(county)]
@@ -69,6 +76,7 @@ def yearrange(start = 1969, end = 1996):
 
 def mortreqjson(regvalues, causevalues, agevalues = allages(), 
         sexvalues = ['1', '2'], yearvalues = yearrange()):
+    """Prepare a JSON request to return number of deaths."""
 
     if '-' in causevalues[0]:
         causefilter = 'agg:DödsorsakKapitel'
@@ -91,6 +99,7 @@ def mortreqjson(regvalues, causevalues, agevalues = allages(),
 
 def ndeaths(regvalues, causevalues, agevalues = allages(), 
         sexvalues = ['1', '2'], yearvalues = yearrange()):
+    """Send a JSON request to return number of deaths."""
     qjson = mortreqjson(regvalues, causevalues, agevalues, sexvalues, yearvalues)
     req = requests.post(morturl, json = qjson)
     req.raise_for_status()
@@ -100,10 +109,12 @@ def ndeaths(regvalues, causevalues, agevalues = allages(),
             'frame': pyjstat.from_json_stat(respjson, naming = 'id')[0]}
 
 def smoother(frame, col):
+    """Smooth time trends."""
     return sm.nonparametric.lowess(frame[col], frame.index, frac = 0.4)
 
 def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause, 
         region, age, years = yearrange(), sexes = ['2', '1']):
+    """Plot a time trend for the number of deaths of one cause relative to another."""
     plt.close()
     numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
     denomcausealias = denomdim['Dodsorsak']['category']['label'][denomcause]
@@ -131,6 +142,7 @@ def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause,
 
 def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause, 
         age):
+    """Plot the number of deaths of one cause relative to another for females vs males."""
     plt.close()
     numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
     denomcausealias = denomdim['Dodsorsak']['category']['label'][denomcause]
@@ -162,6 +174,7 @@ def perc_round(value):
         
 def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
         age, sex, shapefname):
+    """Draw a map with percentiles of deaths of one cause relative to another."""
     plt.close()
     numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
     denomcausealias = denomdim['Dodsorsak']['category']['label'][denomcause]
@@ -225,6 +238,7 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     plt.show()
 
 def catot_yrsdict(region, cause):
+    """Return a dictionary for deaths due to a cause relative to all deaths over time."""
     cadeaths = ndeaths([region], [cause])
     totdeaths = ndeaths([region], ['TOT'])
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
@@ -232,13 +246,16 @@ def catot_yrsdict(region, cause):
             'numcause': cause, 'denomcause': 'TOT', 'region': region}
 
 def catot_sexesdict(regvalues, cause, startyear, endyear):
+    """Return a dictionary for deaths due to a cause relative to all deaths for a set of regions."""
     cadeaths = ndeaths(regvalues, [cause], yearvalues = yearrange(startyear, endyear))
     totdeaths = ndeaths(regvalues, ['TOT'], yearvalues = yearrange(startyear, endyear))
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
             'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
             'numcause': cause, 'denomcause': 'TOT'}
 
-def catot_mapdict(regvalues, cause, startyear, endyear, shapefname):
+def catot_mapdict(regvalues, cause, startyear, endyear, 
+        shapefname = 'naddata/2504/__pgsql2shp2504_tmp_table.shp'):
+    """Return a dictionary for deaths due to a cause relative to all deaths for a set of regions to draw a map."""
     cadeaths = ndeaths(regvalues, [cause], yearvalues = yearrange(startyear, endyear))
     totdeaths = ndeaths(regvalues, ['TOT'], yearvalues = yearrange(startyear, endyear))
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
@@ -246,4 +263,5 @@ def catot_mapdict(regvalues, cause, startyear, endyear, shapefname):
             'numcause': cause, 'denomcause': 'TOT', 'shapefname': shapefname}
 
 def reglabels(pardict):
+    """Return region labels."""
     return pardict['numdim']['Region']['category']['label']
