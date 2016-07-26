@@ -3,6 +3,23 @@ This program can be used to analyze cause-specific regional Swedish mortality da
 
 Possible values for regions, age groups, sexes and causes of death can be retrieved by `metadata(morturl)` which sends a GET request to the [mortality table](http://api.scb.se/OV0104/v1/doris/sv/ssd/START/HS/HS0301/DodaOrsak).
 
+If the cause of death given contains a hyphen, it is assumed to be a chapter
+rather than a single cause of death (the `agg:DödsorsakKapitel` level). The
+following multi-cause chapters are supported:
+
+| Chapter | Description
+| ------- | -----------
+| 1-2 | Infections
+| 3-16 | Tumors
+| 17-18 | Endocrine disorders
+| 20-21 | Mental disorders
+| 23-28 | Circulatory disorders
+| 29-32 | Respiratory disorders
+| 33-35 | Digestive disorders
+| 36-39 | Genitourinary disorders
+| 44-45 | Ill-defined causes
+| 46-52 | External causes
+
 ##Examples
 Save data on deaths from circulatory disorders in Västmanland County for the whole period in a dictionary, and plot a smoothed diagram showing the time trend for proportion of deaths due to this cause group for females and males in the age interval of 70--74 years:
 
