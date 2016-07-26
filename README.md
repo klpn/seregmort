@@ -35,7 +35,7 @@ Norrbotten County for the period 1981--86, and make a scatterplot of female vs
 male proportion of all deaths due to this cause group during the period in the
 age intervals between 75--79 and 85--89 years: 
 ```python
-pardict = catot_sexesdict(munis_incounty('25', metadata(morturl)), '23-28', 1981, 1986)
+pardict = catot_mapdict(munis_incounty('25', metadata(morturl)), '23-28', 1981, 1986)
 propscatsexes(**pardict, startage = '75-79', endage = '85-89')
 ```
 Note that data for single years and narrow age bands are often not very useful due to the small numbers of deaths, especially at the municipality level.

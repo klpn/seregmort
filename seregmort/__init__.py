@@ -160,7 +160,7 @@ def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause,
             .format(**locals()))
 
 def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause, 
-        startage, endage):
+        startage, endage, **kwargs):
     """Plot the number of deaths of one cause relative to another for females vs males."""
     plt.close()
     numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
@@ -267,14 +267,6 @@ def catot_yrsdict(region, cause):
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
             'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
             'numcause': cause, 'denomcause': 'TOT', 'region': region}
-
-def catot_sexesdict(regvalues, cause, startyear, endyear):
-    """Return a dictionary for deaths due to a cause relative to all deaths for a set of regions."""
-    cadeaths = ndeaths(regvalues, [cause], yearvalues = yearrange(startyear, endyear))
-    totdeaths = ndeaths(regvalues, ['TOT'], yearvalues = yearrange(startyear, endyear))
-    return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
-            'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
-            'numcause': cause, 'denomcause': 'TOT'}
 
 def catot_mapdict(regvalues, cause, startyear, endyear, 
         shapefname = 'naddata/2504/__pgsql2shp2504_tmp_table.shp'):
