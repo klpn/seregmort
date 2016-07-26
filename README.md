@@ -12,7 +12,7 @@ propplotyrs(**pardict, age = '70-74')
 ```
 Save data on deaths from circulatory disorders in all municipalities in Norrbotten County for the period 1981--86, and make a scatterplot of female vs male proportion of all deaths due to this cause group during the period in the age interval of 75--79 years: 
 ```python
-pardict = catot_mapdict(munis_incounty('25', metadata(morturl)), '23-28', 1981, 1986)
+pardict = catot_sexesdict(munis_incounty('25', metadata(morturl)), '23-28', 1981, 1986)
 propscatsexes(**pardict, age = '75-79')
 ```
 Note that data for single years are often not very useful due to the small numbers of deaths, especially at the municipality level.
