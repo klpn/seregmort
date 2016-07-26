@@ -31,7 +31,7 @@ shapefiles.
 Plot a map of the proportion of female deaths due to circulatory disorders in
 all municipalities in Västernorrland County during the period 1981--86 in the
 age interval of 75--79 years (note that
-`naddata/2504/__pgsql2shp2504_tmp_table.shp`) is default shapefile path:
+`naddata/2504/__pgsql2shp2504_tmp_table.shp` is default shapefile path):
 ```python
 pardict = catot_mapdict(munis_incounty('22', metadata(morturl)), '23-28', 1981, 1986)
 propmap(**pardict, age = '75-79', sex = '2') 
