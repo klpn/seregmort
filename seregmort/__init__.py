@@ -88,7 +88,7 @@ def ageslice(startage, endage):
 
 def causealias(cause, dim):
     if cause == 'POP':
-        return dim['ContentsCode']['category']['label']['BE0101N1']
+        return dim['ContentsCode']['category']['label']['BE0101N1'].lower()
     else:
         return dim['Dodsorsak']['category']['label'][cause]
 
@@ -99,6 +99,13 @@ def allregions(level, metadict):
         return list(filter(is_county, regvalues))
     elif level == 'municipality':
         return list(filter(is_municipality, regvalues))
+
+def unchanged_county(region):
+    return region[0:2] not in ['11', '12', '14', '15', '16']
+
+def unchanged_regions(level, metadict):
+    regvalues = allregions(level, metadict)
+    return list(filter(unchanged_county, regvalues))
 
 def munis_incounty(county, metadict):
     """Return all municipalities in the county given."""

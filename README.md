@@ -78,3 +78,13 @@ propmap(**pardict, startage = '50-54', endage = '70-74', sex = '1')
 The `capop_mapdict` wrapper can also be used with `propscatsexes` for drawing
 scatterplots, as in the example with `catot_mapdict`. The `capop_yrsdict`
 wrapper can be used with `propplotyrs`.
+
+The `unchanged_regions` function can be used to selection those counties which
+have remained unchanged. To plot a map of female mortality rates from circulatory
+disorders in all counties, except for the changed ones in what is nowadays
+Skåne and Västra Götaland County, during the period 1981--86 in the age intervals
+65--69 and 70--74 years:
+```python
+pardict = capop_mapdict(unchanged_regions('county', metadata(morturl)), '23-28', 1981, 1986)
+propmap(**pardict, startage = '65-69', endage = '70-74', sex = '2')
+```
