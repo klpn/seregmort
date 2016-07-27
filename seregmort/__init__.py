@@ -50,12 +50,24 @@ def is_county(region):
 def is_municipality(region):
     return len(region) == 4
 
-def allages():
+def allages(ageformat = 'mort'):
     """Returns the age groups used by Statistics Sweden."""
-    startages = [1] + list(range(5, 90, 5))
-    endages = [4] + list(range(9, 94, 5))
-    ageints = ['{0}-{1}'.format(s, e) for s, e in zip(startages, endages)]
-    return ['0'] + ageints + ['90+']
+    if ageformat == 'mort':
+        startint = '0'
+        startages = [1] + list(range(5, 90, 5))
+        endages = [4] + list(range(9, 94, 5))
+        endint = '90+'
+    elif ageformat == 'pop':
+        startint = '-4'
+        startages = list(range(5, 100, 5))
+        endages = list(range(9, 104, 5))
+        endint = '100+'
+    midints = ['{0}-{1}'.format(s, e) for s, e in zip(startages, endages)]
+    return [startint] + midints + [endint]
+
+def ageintmerge():
+    return pd.DataFrame({'mortAlder': allages() + [allages()[-1]]*2, 
+        'Alder': [allages('pop')[0]] + allages('pop')})
 
 def agesplitter(age):
     if '-' in age:
@@ -73,6 +85,12 @@ def ageslice(startage, endage):
         alias = agesplitter(startage)[0] + '\u2013' + agesplitter(endage)[-1]
     agelist = ages[startind:endind+1]
     return {'agelist': agelist, 'alias': alias}
+
+def causealias(cause, dim):
+    if cause == 'POP':
+        return dim['ContentsCode']['category']['label']['BE0101N1']
+    else:
+        return dim['Dodsorsak']['category']['label'][cause]
 
 def allregions(level, metadict):
     """Return all regions at county or municipality level."""
@@ -114,6 +132,24 @@ def mortreqjson(regvalues, causevalues, agevalues = allages(),
                 {'selection': {'filter': 'item', 'values': sexvalues},  'code': 'Kon'},
                 {'selection': {'filter': 'item', 'values': yearvalues},  'code': 'Tid'}]}
 
+def popreqjson(regvalues, agevalues = allages('pop'), 
+        sexvalues = ['1', '2'], yearvalues = yearrange()):
+    """Prepare a JSON request to return population size."""
+    
+    if is_county(regvalues[0]):
+        regfilter = 'vs:RegionLän07'
+    elif is_municipality(regvalues[0]):
+        regfilter = 'vs:RegionKommun07'
+
+    return {'response': {'format': 'json-stat'}, 
+            'query': [{'selection': {'filter': regfilter, 'values': regvalues}, 
+                'code': 'Region'},
+                {'selection': {'filter': 'agg:Ålder5år', 'values': agevalues},  'code': 'Alder'},
+                {'selection': {'filter': 'item', 'values': sexvalues},  'code': 'Kon'},
+                {'selection': {'filter': 'item', 'values': ['BE0101N1']},  'code': 'ContentsCode'},
+                {'selection': {'filter': 'item', 'values': yearvalues},  'code': 'Tid'}]}
+
+            
 def ndeaths(regvalues, causevalues, agevalues = allages(), 
         sexvalues = ['1', '2'], yearvalues = yearrange()):
     """Send a JSON request to return number of deaths."""
@@ -125,6 +161,19 @@ def ndeaths(regvalues, causevalues, agevalues = allages(),
     return {'dimension': respjson['dataset']['dimension'], 
             'frame': pyjstat.from_json_stat(respjson, naming = 'id')[0]}
 
+def npop(regvalues, agevalues = allages('pop'),
+        sexvalues = ['1', '2'], yearvalues = yearrange()):
+    """Send a JSON request to return population size."""
+    qjson = popreqjson(regvalues, agevalues, sexvalues, yearvalues)
+    req = requests.post(popurl, json = qjson)
+    req.raise_for_status()
+    respstr = req.content.decode('utf-8')
+    respjson = json.loads(respstr, object_pairs_hook = OrderedDict)
+    popframe = pyjstat.from_json_stat(respjson, naming = 'id')[0]
+    popmerged = pd.merge(ageintmerge(), popframe, on = 'Alder')
+    return {'dimension': respjson['dataset']['dimension'], 
+            'frame': popmerged}
+
 def smoother(col, index):
     """Smooth time trends."""
     return sm.nonparametric.lowess(col, index, frac = 0.4)
@@ -133,8 +182,8 @@ def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause,
         region, startage, endage, years = yearrange(), sexes = ['2', '1']):
     """Plot a time trend for the number of deaths of one cause relative to another."""
     plt.close()
-    numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
-    denomcausealias = denomdim['Dodsorsak']['category']['label'][denomcause]
+    numcausealias = causealias(numcause, numdim)
+    denomcausealias = causealias(denomcause, denomdim)
     regalias = numdim['Region']['category']['label'][region].replace(region, '').lstrip()
     ages = ageslice(startage, endage)
     agealias = ages['alias']
@@ -145,10 +194,15 @@ def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause,
         numframe_sub = numframe[(numframe.Kon == sex) & (numframe.Dodsorsak == numcause)
                 & (numframe.Region == region) & (numframe.Alder.isin(agelist)) 
                 & (numframe.Tid.isin(years))].groupby(['Tid'])
-        denomframe_sub = denomframe[(denomframe.Kon == sex) & 
-                (denomframe.Dodsorsak == denomcause) & 
-                (denomframe.Region == region) & (denomframe.Alder.isin(agelist))
-                & (denomframe.Tid.isin(years))].groupby(['Tid'])
+        if denomcause == 'POP':
+            denomframe_sub = denomframe[(denomframe.Kon == sex) & 
+                    (denomframe.Region == region) & (denomframe.Alder.isin(agelist))
+                    & (denomframe.Tid.isin(years))].groupby(['Tid'])
+        else:
+            denomframe_sub = denomframe[(denomframe.Kon == sex) & 
+                    (denomframe.Dodsorsak == denomcause) & 
+                    (denomframe.Region == region) & (denomframe.Alder.isin(agelist))
+                    & (denomframe.Tid.isin(years))].groupby(['Tid'])
         prop = numframe_sub.value.sum() / denomframe_sub.value.sum()
         plt.plot(yrints, prop, label = sexalias)
         sex_smo = smoother(prop, yrints)
@@ -159,12 +213,27 @@ def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     plt.title('Döda {numcausealias}/{denomcausealias}\n{agealias} {regalias}'
             .format(**locals()))
 
+def prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist):
+    numframe_sub = numframe[(numframe.Kon == sex) & 
+            (numframe.Dodsorsak == numcause) 
+            & (numframe.Alder.isin(agelist))].groupby(['Region'])
+    if denomcause == 'POP':
+        denomframe_sub = denomframe[(denomframe.Kon == sex) & 
+            (denomframe.Alder.isin(agelist))].groupby(['Region'])
+    else:
+        denomframe_sub = denomframe[(denomframe.Kon == sex) & 
+            (denomframe.Dodsorsak == denomcause) & 
+            (denomframe.Alder.isin(agelist))].groupby(['Region'])
+    
+    return {'prop': numframe_sub.value.sum() / denomframe_sub.value.sum(),
+            'regvalues': list(numframe_sub.Region.all())}
+
 def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause, 
         startage, endage, **kwargs):
     """Plot the number of deaths of one cause relative to another for females vs males."""
     plt.close()
-    numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
-    denomcausealias = denomdim['Dodsorsak']['category']['label'][denomcause]
+    numcausealias = causealias(numcause, numdim)
+    denomcausealias = causealias(denomcause, denomdim)
     ages = ageslice(startage, endage)
     agealias = ages['alias']
     agelist = ages['agelist']
@@ -174,14 +243,9 @@ def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     for sex in ['2', '1']:
         sexframes[sex] = dict()
         sexframes[sex]['alias'] = numdim['Kon']['category']['label'][sex]
-        numframe_sub =  numframe[(numframe.Kon == sex) & 
-                (numframe.Dodsorsak == numcause) 
-                & (numframe.Alder.isin(agelist))].groupby(['Region'])
-        denomframe_sub =  denomframe[(denomframe.Kon == sex) & 
-                (denomframe.Dodsorsak == denomcause) & 
-                (denomframe.Alder.isin(agelist))].groupby(['Region'])
-        sexframes[sex]['prop'] = numframe_sub.value.sum() / denomframe_sub.value.sum()
-        sexframes[sex]['regvalues'] = numframe_sub.Region.all()
+        propdict = prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist)
+        sexframes[sex]['prop'] = propdict['prop'] 
+        sexframes[sex]['regvalues'] = propdict['regvalues']
     plt.scatter(sexframes['2']['prop'], sexframes['1']['prop'])
     for i, code in enumerate(sexframes['2']['regvalues']):
         plt.annotate(code, (sexframes['2']['prop'][i], sexframes['1']['prop'][i]))
@@ -197,23 +261,18 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
         startage, endage, sex, shapefname):
     """Draw a map with percentiles of deaths of one cause relative to another."""
     plt.close()
-    numcausealias = numdim['Dodsorsak']['category']['label'][numcause]
-    denomcausealias = denomdim['Dodsorsak']['category']['label'][denomcause]
     ages = ageslice(startage, endage)
     agealias = ages['alias']
     agelist = ages['agelist']
     sexalias = numdim['Kon']['category']['label'][sex]
+    numcausealias = causealias(numcause, numdim)
+    denomcausealias = causealias(denomcause, denomdim)
     startyear = min(numframe.Tid)
     endyear = max(numframe.Tid)
     region_shp = shpreader.Reader(shapefname)
-    numframe_sub =  numframe[(numframe.Kon == sex) & 
-            (numframe.Dodsorsak == numcause) 
-            & (numframe.Alder.isin(agelist))].groupby(['Region'])
-    denomframe_sub =  denomframe[(denomframe.Kon == sex) & 
-            (denomframe.Dodsorsak == denomcause) & 
-            (denomframe.Alder.isin(agelist))].groupby(['Region'])
-    prop = numframe_sub.value.sum() / denomframe_sub.value.sum()
-    regvalues = list(numframe_sub.Region.all())
+    propdict = prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist)
+    prop = propdict['prop']
+    regvalues = propdict['regvalues']
     units = list(map(scb_to_unit, regvalues))
     regdict = dict(zip(units, regvalues))
     percentiles = [{'col': 'lightsalmon', 'value': np.nanpercentile(prop, 1/3*100)},
@@ -261,21 +320,38 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     plt.show()
 
 def catot_yrsdict(region, cause):
-    """Return a dictionary for deaths due to a cause relative to all deaths over time."""
+    """Return a dictionary for deaths due to a cause and all deaths over time."""
     cadeaths = ndeaths([region], [cause])
     totdeaths = ndeaths([region], ['TOT'])
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
             'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
             'numcause': cause, 'denomcause': 'TOT', 'region': region}
 
+def capop_yrsdict(region, cause):
+    """Return a dictionary for deaths due to a cause and population over time."""
+    cadeaths = ndeaths([region], [cause])
+    pop = npop([region])
+    return {'numframe': cadeaths['frame'], 'denomframe': pop['frame'],
+            'numdim': cadeaths['dimension'], 'denomdim': pop['dimension'],
+            'numcause': cause, 'denomcause': 'POP', 'region': region}
+
 def catot_mapdict(regvalues, cause, startyear, endyear, 
         shapefname = 'naddata/2504/__pgsql2shp2504_tmp_table.shp'):
-    """Return a dictionary for deaths due to a cause relative to all deaths for a set of regions to draw a map."""
+    """Return a dictionary for deaths due to a cause and all deaths for a set of regions."""
     cadeaths = ndeaths(regvalues, [cause], yearvalues = yearrange(startyear, endyear))
     totdeaths = ndeaths(regvalues, ['TOT'], yearvalues = yearrange(startyear, endyear))
     return {'numframe': cadeaths['frame'], 'denomframe': totdeaths['frame'],
             'numdim': cadeaths['dimension'], 'denomdim': totdeaths['dimension'],
             'numcause': cause, 'denomcause': 'TOT', 'shapefname': shapefname}
+
+def capop_mapdict(regvalues, cause, startyear, endyear, 
+        shapefname = 'naddata/2504/__pgsql2shp2504_tmp_table.shp'):
+    """Return a dictionary for deaths due to a cause and population for a set of regions."""
+    cadeaths = ndeaths(regvalues, [cause], yearvalues = yearrange(startyear, endyear))
+    pop = npop(regvalues, yearvalues = yearrange(startyear, endyear))
+    return {'numframe': cadeaths['frame'], 'denomframe': pop['frame'],
+            'numdim': cadeaths['dimension'], 'denomdim': pop['dimension'],
+            'numcause': cause, 'denomcause': 'POP', 'shapefname': shapefname}
 
 def reglabels(pardict):
     """Return region labels."""

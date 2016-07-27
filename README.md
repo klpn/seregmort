@@ -58,3 +58,23 @@ age intervals between 75--79 and 85--89 years (note that
 ```python
 pardict = catot_mapdict(munis_incounty('22', metadata(morturl)), '23-28', 1981, 1986)
 propmap(**pardict, startage = '75-79', endage = '85-89', sex = '2') 
+```
+
+There is limited support for visualizing mortality rates by using population
+size in the denominator (based on data from a [population
+table](http://api.scb.se/OV0104/v1/doris/sv/ssd/START/BE/BE0101/BE0101A/BefolkningNy).
+However, this is difficult to implement fully, because the tables use differing
+age formats and (more importantly) because the population table uses a newer
+regional divsion. Currently, it should work for age groups between 5--9 and
+85--89 years and regions which have not changed since 1996. For example, to
+plot a map of male mortality rates from circulatory disordes in the municipalities
+in Västerbotten County during the period 1981--86 in the age intervals between
+50--54 and 65--69 years:
+```python
+pardict = capop_mapdict(munis_incounty('24', metadata(morturl)), '23-28', 1981, 1986)
+propmap(**pardict, startage = '50-54', endage = '70-74', sex = '1')
+```
+
+The `capop_mapdict` wrapper can also be used with `propscatsexes` for drawing
+scatterplots, as in the example with `catot_mapdict`. The `capop_yrsdict`
+wrapper can be used with `propplotyrs`.
