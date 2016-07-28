@@ -320,7 +320,8 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
         else:
             perclabel = '\u2264' + perc_round(percentile['value'])
         perclabels.append(perclabel)
-    plt.legend(percpatches, perclabels, loc = 'lower left', framealpha = 0.75)
+    plt.legend(percpatches, perclabels, loc = 'upper left', 
+            framealpha = 0.75, bbox_to_anchor=(1,1))
     plt.title('Döda {numcausealias}/{denomcausealias}\n'
     '{sexalias} {agealias} {startyear}\u2013{endyear}'.format(**locals()))
 
