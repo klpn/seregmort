@@ -60,6 +60,16 @@ pardict = catot_mapdict(munis_incounty('22', metadata(morturl)), '23-28', 1981, 
 propmap(**pardict, startage = '75-79', endage = '85-89', sex = '2') 
 ```
 
+By default, maps are plotted with three percentiles with different shades. You
+can call the functions `fourp` and `fivep` to plot with four or five
+percentiles instead. To plot a map of proportion of deaths due to ischemic
+heart disease for all counties and all ages during the period 1981--86 among
+males with five percentiles:
+```python
+pardict = catot_mapdict(allregions('county', metadata(morturl)), '25', 1981, 1986)
+propmap(**pardict, startage = '0', endage = '90+', sex = '1', percfunc = fivep)
+```
+
 There is limited support for visualizing mortality rates by using population
 size in the denominator (based on data from a [population
 table](http://api.scb.se/OV0104/v1/doris/sv/ssd/START/BE/BE0101/BE0101A/BefolkningNy).
@@ -87,4 +97,13 @@ Skåne and Västra Götaland County, during the period 1981--86 in the age inter
 ```python
 pardict = capop_mapdict(unchanged_regions('county', metadata(morturl)), '23-28', 1981, 1986)
 propmap(**pardict, startage = '65-69', endage = '70-74', sex = '2')
+```
+
+Death rates may be influenced by the age structure of a population, which may
+give misleading results, especially if wide age bands are compared. Because of
+this, it is possible to calculate average death rates over 5-year age
+intervals, by setting the argument `mean` to `True`, for example:
+```python
+pardict = capop_mapdict(unchanged_regions('county', metadata(morturl)), '23-28', 1981, 1986)
+propmap(**pardict, startage = '15-19', endage = '70-74', sex = '2', mean = True)
 ```

@@ -75,14 +75,18 @@ def agesplitter(age):
     else:
         return [age]
 
-def ageslice(startage, endage):
+def ageslice(startage, endage, mean):
     ages = allages()
     startind = ages.index(startage)
     endind = ages.index(endage)
-    if startage == endage:
-        alias = startage.replace('-', '\u2013')
+    if mean:
+        meanstr = " medel över åldrar"
     else:
-        alias = agesplitter(startage)[0] + '\u2013' + agesplitter(endage)[-1]
+        meanstr = ""
+    if startage == endage:
+        alias = startage.replace('-', '\u2013') + meanstr
+    else:
+        alias = agesplitter(startage)[0] + '\u2013' + agesplitter(endage)[-1] + meanstr
     agelist = ages[startind:endind+1]
     return {'agelist': agelist, 'alias': alias}
 
@@ -185,32 +189,44 @@ def smoother(col, index):
     """Smooth time trends."""
     return sm.nonparametric.lowess(col, index, frac = 0.4)
 
+def prop_timegrp(numframe, numcause, denomframe, denomcause, sex, region, agelist, years):
+    numframe_sub = numframe[(numframe.Kon == sex) & (numframe.Dodsorsak == numcause)
+                & (numframe.Region == region) & (numframe.Alder.isin(agelist)) 
+                & (numframe.Tid.isin(years))].groupby(['Tid'])
+    if denomcause == 'POP':
+        denomframe_sub = denomframe[(denomframe.Kon == sex) & 
+            (denomframe.Region == region) & (denomframe.Alder.isin(agelist))
+            & (denomframe.Tid.isin(years))].groupby(['Tid'])
+    else:
+        denomframe_sub = denomframe[(denomframe.Kon == sex) & 
+            (denomframe.Dodsorsak == denomcause) & 
+            (denomframe.Region == region) & (denomframe.Alder.isin(agelist))
+            & (denomframe.Tid.isin(years))].groupby(['Tid'])
+    return numframe_sub.value.sum() / denomframe_sub.value.sum()
+
 def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause, 
-        region, startage, endage, years = yearrange(), sexes = ['2', '1']):
+        region, startage, endage, years = yearrange(), sexes = ['2', '1'], mean = False):
     """Plot a time trend for the number of deaths of one cause relative to another."""
     plt.close()
     numcausealias = causealias(numcause, numdim)
     denomcausealias = causealias(denomcause, denomdim)
     regalias = numdim['Region']['category']['label'][region].replace(region, '').lstrip()
-    ages = ageslice(startage, endage)
+    ages = ageslice(startage, endage, mean)
     agealias = ages['alias']
     agelist = ages['agelist']
     yrints = list(map(int, years))
     for sex in sexes:
         sexalias = numdim['Kon']['category']['label'][sex]
-        numframe_sub = numframe[(numframe.Kon == sex) & (numframe.Dodsorsak == numcause)
-                & (numframe.Region == region) & (numframe.Alder.isin(agelist)) 
-                & (numframe.Tid.isin(years))].groupby(['Tid'])
-        if denomcause == 'POP':
-            denomframe_sub = denomframe[(denomframe.Kon == sex) & 
-                    (denomframe.Region == region) & (denomframe.Alder.isin(agelist))
-                    & (denomframe.Tid.isin(years))].groupby(['Tid'])
+        if mean:
+            ageprops = []
+            for age in agelist:
+                ageprops.append(prop_timegrp(numframe, numcause, 
+                    denomframe, denomcause, sex, region, [age], years))
+            aptransp = np.transpose(ageprops)
+            prop = list(map(np.mean, aptransp))
         else:
-            denomframe_sub = denomframe[(denomframe.Kon == sex) & 
-                    (denomframe.Dodsorsak == denomcause) & 
-                    (denomframe.Region == region) & (denomframe.Alder.isin(agelist))
-                    & (denomframe.Tid.isin(years))].groupby(['Tid'])
-        prop = numframe_sub.value.sum() / denomframe_sub.value.sum()
+            prop = prop_timegrp(numframe, numcause, denomframe, denomcause, 
+                    sex, region, agelist, years) 
         plt.plot(yrints, prop, label = sexalias)
         sex_smo = smoother(prop, yrints)
         plt.plot(sex_smo[:, 0], sex_smo[:, 1], label = sexalias + ' jämnad')
@@ -220,7 +236,22 @@ def propplotyrs(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     plt.title('Döda {numcausealias}/{denomcausealias}\n{agealias} {regalias}'
             .format(**locals()))
 
-def prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist):
+def prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist, mean = False):
+    if mean:
+        agepropdicts = []
+        ageprops = []
+        for age in agelist:
+            agepropdicts.append(propdiv_reggrp(numframe, numcause, 
+                    denomframe, denomcause, sex, [age]))
+            ageprops.append(agepropdicts[-1]['prop'])
+        regvalues = agepropdicts[0]['regvalues']
+        aptransp = np.transpose(ageprops)
+        prop = list(map(np.mean, aptransp))
+        return {'prop': prop, 'regvalues': regvalues}
+    else:
+        return propdiv_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist)
+
+def propdiv_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist):
     numframe_sub = numframe[(numframe.Kon == sex) & 
             (numframe.Dodsorsak == numcause) 
             & (numframe.Alder.isin(agelist))].groupby(['Region'])
@@ -236,12 +267,12 @@ def prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist):
             'regvalues': list(numframe_sub.Region.all())}
 
 def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause, 
-        startage, endage, **kwargs):
+        startage, endage, mean = False, **kwargs):
     """Plot the number of deaths of one cause relative to another for females vs males."""
     plt.close()
     numcausealias = causealias(numcause, numdim)
     denomcausealias = causealias(denomcause, denomdim)
-    ages = ageslice(startage, endage)
+    ages = ageslice(startage, endage, mean)
     agealias = ages['alias']
     agelist = ages['agelist']
     startyear = min(numframe.Tid)
@@ -250,7 +281,7 @@ def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     for sex in ['2', '1']:
         sexframes[sex] = dict()
         sexframes[sex]['alias'] = numdim['Kon']['category']['label'][sex]
-        propdict = prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist)
+        propdict = prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist, mean)
         sexframes[sex]['prop'] = propdict['prop'] 
         sexframes[sex]['regvalues'] = propdict['regvalues']
     plt.scatter(sexframes['2']['prop'], sexframes['1']['prop'])
@@ -258,17 +289,39 @@ def propscatsexes(numframe, denomframe, numdim, denomdim, numcause, denomcause,
         plt.annotate(code, (sexframes['2']['prop'][i], sexframes['1']['prop'][i]))
     plt.xlabel(sexframes['2']['alias'])
     plt.ylabel(sexframes['1']['alias'])
+    axmin = 0.95
+    axmax = 1.05
+    plt.xlim(min(sexframes['2']['prop'])*axmin, max(sexframes['2']['prop'])*axmax)
+    plt.ylim(min(sexframes['1']['prop'])*axmin, max(sexframes['1']['prop'])*axmax)
     plt.title('Döda {numcausealias}/{denomcausealias}\n'
     '{agealias} {startyear}\u2013{endyear}'.format(**locals()))
 
 def perc_round(value):
     return str(np.round(value, 4)).replace('.', ',')
-        
+
+def threep(prop):
+    return [{'col': 'lightsalmon', 'value': np.nanpercentile(prop, 1/3*100)},
+            {'col': 'tomato', 'value': np.nanpercentile(prop, 2/3*100)},
+            {'col': 'red', 'value': np.nanpercentile(prop, 100)}]
+
+def fourp(prop):
+    return [{'col': 'lightyellow', 'value': np.nanpercentile(prop, 1/4*100)},
+            {'col': 'yellow', 'value': np.nanpercentile(prop, 2/4*100)},
+            {'col': 'tomato', 'value': np.nanpercentile(prop, 3/4*100)},
+            {'col': 'red', 'value': np.nanpercentile(prop, 100)}]
+
+def fivep(prop):
+    return [{'col': 'lightyellow', 'value': np.nanpercentile(prop, 1/5*100)},
+            {'col': 'yellow', 'value': np.nanpercentile(prop, 2/5*100)},
+            {'col': 'orange', 'value': np.nanpercentile(prop, 3/5*100)},
+            {'col': 'tomato', 'value': np.nanpercentile(prop, 4/5*100)},
+            {'col': 'red', 'value': np.nanpercentile(prop, 100)}]
+
 def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
-        startage, endage, sex, shapefname):
+        startage, endage, sex, shapefname, percfunc = threep, mean = False):
     """Draw a map with percentiles of deaths of one cause relative to another."""
     plt.close()
-    ages = ageslice(startage, endage)
+    ages = ageslice(startage, endage, mean)
     agealias = ages['alias']
     agelist = ages['agelist']
     sexalias = numdim['Kon']['category']['label'][sex]
@@ -277,15 +330,13 @@ def propmap(numframe, denomframe, numdim, denomdim, numcause, denomcause,
     startyear = min(numframe.Tid)
     endyear = max(numframe.Tid)
     region_shp = shpreader.Reader(shapefname)
-    propdict = prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist)
+    propdict = prop_reggrp(numframe, numcause, denomframe, denomcause, sex, agelist, mean)
     prop = propdict['prop']
     regvalues = propdict['regvalues']
     units = list(map(scb_to_unit, regvalues))
     regdict = dict(zip(units, regvalues))
-    percentiles = [{'col': 'lightsalmon', 'value': np.nanpercentile(prop, 1/3*100)},
-            {'col': 'tomato', 'value': np.nanpercentile(prop, 2/3*100)},
-            {'col': 'red', 'value': np.nanpercentile(prop, 100)}]
-
+    percentiles = percfunc(prop) 
+    
     ax = plt.axes(projection = ccrs.TransverseMercator())
 
     boundlist = []
